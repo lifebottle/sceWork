@@ -26,7 +26,7 @@ namespace sceWork
         private static void Main(string[] args)
         {
             Console.WriteLine("TOD1RSCE sceWork v0.9 - Cross-Platform");
-            string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase);
+            string exeDir = Path.GetDirectoryName(System.Diagnostics.Process.GetCurrentProcess().MainModule.FileName);
             exeDir = new Uri(exeDir).LocalPath;
 
             if (File.Exists(Path.Combine(exeDir, "jpcodes.txt")))

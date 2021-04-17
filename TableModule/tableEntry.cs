@@ -20,7 +20,7 @@ namespace sceWork
             if (commentIndex > 0)
                 this.B = this.B.Remove(commentIndex);
             this.B = System.Text.RegularExpressions.Regex.Unescape(this.B);
-            this.B = System.BitConverter.ToString(Encoding.GetEncoding(932).GetBytes(this.B)).Replace("-", string.Empty);            
+            this.B = System.BitConverter.ToString(Encoding.GetEncoding(932).GetBytes(this.B)).Replace("-", string.Empty);
         }
     }
 }

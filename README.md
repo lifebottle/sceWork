@@ -1,9 +1,18 @@
 # Compile Instructions
-1. Open TOD1RSCE4.sln with Visual Studio Community Edition (2019)
+1. Open sceWork.sln with Visual Studio Community Edition (2019)
 1. Build the solution (Debug/Release is fine)
 1. You should have `sceWork.exe` and `TableModule.dll`
 1. Extract raw data with `sceWork.exe`
 1. Extract data with Japanese text, you also need `JPCODES.txt` in the same directory
+
+# Linux / macOS Instructions
+1. Install .NET 5.0 Runtime: `wget https://download.visualstudio.microsoft.com/download/pr/827b12a8-8dea-43da-92a2-2d24c4936236/d2d61b3ed4b5ba3f682de3e04fc4d243/aspnetcore-runtime-5.0.5-linux-x64.tar.gz`
+1. Create a new install directory for .NET 5.0: `mkdir dotnet-64`
+1. Extract and install .NET 5.0: `tar zxf aspnetcore-runtime-5.0.5-linux-x64.tar.gz -C $HOME/dotnet-64`
+1. To make the dotnet command run everywhere, put new path ahead of $PATH to increase the priority:
+1. `export DOTNET_ROOT=$HOME/dotnet-64`
+1. `export PATH=$HOME/dotnet-64:$PATH`
+1. Enter the following to make sure .NET 5.0 is working: `dotnet --info`
 
 # Usage Instructions (General)
 1. Use `//` to comment out lines that do not need to be inserted

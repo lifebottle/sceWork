@@ -24,11 +24,11 @@ namespace sceWork
             if (order)
             {
                 Comparison<tableEntry> p = delegate (tableEntry temp1, tableEntry temp2)
-                                   {
-                                       if (temp1.A.Length < temp2.A.Length) return 1;
-                                       else if (temp1.A.Length > temp2.A.Length) return -1;
-                                       return temp1.A.CompareTo(temp2.A) * -1;
-                                   };
+                {
+                    if (temp1.A.Length < temp2.A.Length) return 1;
+                    else if (temp1.A.Length > temp2.A.Length) return -1;
+                    return temp1.A.CompareTo(temp2.A) * -1;
+                };
                 entry.Sort(p);
             }
         }

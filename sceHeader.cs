@@ -6,12 +6,17 @@ namespace sceWork
 {
     internal class sceHeader
     {
+        const int SECTION_COUNT = 6;
         public uint offsetScript;
         public uint offsetStrings;
+        public uint[] sectionOffsets;
+        public uint sectionItemCount = 0;
         public List<sceStrings> fileStrings;
         public List<int> lineNumberList;
         public List<string> plainStringList;
         public List<int> sizes;
+        public Dictionary<long, sceInstruction> instructions;
+        public List<long> instructionOffsets;
 
         public sceHeader(StreamFunctionAdd sfa)
         {
@@ -21,50 +26,34 @@ namespace sceWork
             }
             offsetScript = sfa.ReadUInt32();
             offsetStrings = sfa.ReadUInt32();
+            sfa.ReadUInt32();
+            uint frame = sfa.ReadUInt32();
+            uint entry = sfa.ReadUInt32();
+            for (int i = 0; i < SECTION_COUNT; i++)
+            {
+                sectionItemCount += sfa.ReadUInt16();
+            }
+            sectionItemCount += 2;
+
+            // Don't care about the per section counts
+            for (int i = 0; i < SECTION_COUNT; i++)
+            {
+                sfa.ReadUInt16();
+            }
+
+            sectionOffsets = new uint[sectionItemCount];
+            sectionOffsets[0] = frame;
+            sectionOffsets[1] = entry;
+            for (int i = 2; i < sectionItemCount; i++)
+            {
+                sfa.ReadUInt16(); sfa.ReadUInt16();
+                sectionOffsets[i] = sfa.ReadUInt32();
+            }
+
             fileStrings = new List<sceStrings>();
             sizes = new List<int>();
             sfa.PositionStream = offsetScript;
-            while (sfa.PositionStream < offsetStrings)
-            {
-                //The file is composed by some bytecode above and strings below
-                //then the game gets the offset to a string whith the opcode 0x47
-                //so we loop until then, it can get some false positives though
-                if (sfa.ReadByte() == 0x47)
-                {
-                    byte num = sfa.ReadByte();
-                    if (num >> 4 == 1)
-                    {
-                        if (sfa.ReadByte() == 0x0)
-                        {
-                            fileStrings.Add(new sceStrings((uint)sfa.PositionStream - 1, offsetStrings)
-                            {
-                                offset = ((uint)num & 0xF) + offsetStrings,
-                                typeOffset = sceStrings.OffsetType.ShortOffset
-                            });
-                        }
-                        else
-                        {
-                            sfa.PositionStream--;
-                        }
-                    }
-                    if (num >> 4 == 5)
-                    {
-                        sceStrings sceStrings = new sceStrings((uint)sfa.PositionStream, offsetStrings);
-                        sceStrings.offset = (uint)((num & 0xF) << 8) + sfa.ReadByte() + offsetStrings;
-                        sceStrings.typeOffset = sceStrings.OffsetType.MediumOffset;
-                        if (sfa.ReadByte() == 0)
-                            fileStrings.Add(sceStrings);
-                    }
-                    if (num == 0x90)
-                    {
-                        sceStrings sceStrings = new sceStrings((uint)sfa.PositionStream, offsetStrings);
-                        sceStrings.offset = sfa.ReadUInt16() + offsetStrings;
-                        sceStrings.typeOffset = sceStrings.OffsetType.LargeOffset;
-                        if (sfa.ReadByte() == 0)
-                            fileStrings.Add(sceStrings);
-                    }
-                }
-            }
+            instructions = Parse(sfa, fileStrings);
 
             //order the offsets by string position
             fileStrings.Sort((s1, s2) => s1.offset.CompareTo(s2.offset));
@@ -81,16 +70,293 @@ namespace sceWork
                 fileStrings[index].ReadData(sfa, sizes[index]);
         }
 
+        private void parse0x40(StreamFunctionAdd sfa, List<byte> data)
+        {
+            byte bass = sfa.ReadByte();
+            data.Add(bass);
+
+            byte n = sfa.ReadByte();
+            data.Add(n);
+
+            switch (n >> 6)
+            {
+                case 1:
+                    data.Add(sfa.ReadByte());
+                    break;
+                case 2:
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    break;
+                case 3:
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    break;
+            }
+
+            uint mask = (uint)(bass >> 2) & 7;
+            if (mask >= 2 && mask <= 5)
+            {
+                return;
+            }
+
+            mask = (uint)(n >> 4) & 3;
+            if (mask == 1)
+            {
+                data.Add(sfa.ReadByte());
+            }
+            else if (mask == 2)
+            {
+                data.Add(sfa.ReadByte());
+                data.Add(sfa.ReadByte());
+            }
+            else if (mask == 3)
+            {
+                data.Add(sfa.ReadByte());
+                data.Add(sfa.ReadByte());
+                data.Add(sfa.ReadByte());
+            }
+        }
+
+        private void parse0x20(StreamFunctionAdd sfa, List<byte> data)
+        {
+            byte n = sfa.ReadByte();
+            data.Add(n);
+
+            switch ((n >> 2) & 3)
+            {
+                case 1:
+                    data.Add(sfa.ReadByte());
+                    break;
+                case 2:
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    break;
+                case 3:
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    data.Add(sfa.ReadByte());
+                    break;
+            }
+        }
+        private void parse0x80(StreamFunctionAdd sfa, List<byte> data)
+        {
+            byte n = sfa.ReadByte();
+            data.Add(n);
+
+            if ((n & 0x40) == 0)
+            {
+                return;
+            }
+
+            n = sfa.ReadByte();
+            data.Add(n);
+
+            int mask = (n >> 3) & 7;
+            if (mask == 2)
+            {
+                data.Add(sfa.ReadByte());
+            }
+            else if (mask == 3)
+            {
+                data.Add(sfa.ReadByte());
+                data.Add(sfa.ReadByte());
+            }
+        }
+
+        public Dictionary<long, sceInstruction> Parse(StreamFunctionAdd sfa, List<sceStrings> fileStrings)
+        {
+            var fileInstructions = new Dictionary<long, sceInstruction>();
+            instructionOffsets = new List<long>();
+            List<byte> temp;
+            uint branchTarget;
+
+            while (sfa.GetPosition() < this.offsetStrings - 1)
+            {
+                temp = new List<byte>();
+                // Parse the opcode
+                long position = sfa.GetPosition() - offsetScript;
+                instructionOffsets.Add(position);
+                byte currOpcode = sfa.ReadByte();
+                switch (currOpcode)
+                {
+                    case 1:
+                    case 2:
+                    case 10:
+                        temp.Add(currOpcode);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
+                        continue;
+                    case 3:
+                        branchTarget = sfa.ReadUInt24();
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.jmp, position, branchTarget, temp);
+                        continue;
+                    case 4:
+                        branchTarget = sfa.ReadUInt24();
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.jzs, position, branchTarget, temp);
+                        continue;
+                    case 5:
+                        branchTarget = sfa.ReadUInt24();
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.jnz, position, branchTarget, temp);
+                        continue;
+                    case 6:
+                        branchTarget = sfa.ReadUInt24();
+                        parse0x20(sfa, temp);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.jne, position, branchTarget, temp);
+                        continue;
+                    case 7:
+                        branchTarget = sfa.ReadUInt24();
+                        parse0x20(sfa, temp);
+                        parse0x20(sfa, temp);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.jbt, position, branchTarget, temp);
+                        continue;
+                    case 8:
+                        branchTarget = sfa.ReadUInt24();
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.cll, position, branchTarget, temp);
+                        continue;
+                    case 9:
+                        temp.Add(currOpcode);
+                        parse0x40(sfa, temp);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, sfa.GetPosition(), temp);
+                        continue;
+                    case 11:
+                        temp.Add(currOpcode);
+                        parse0x20(sfa, temp);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, sfa.GetPosition(), temp);
+                        continue;
+                    case 0x47:
+                        byte num = sfa.ReadByte();
+                        uint strOff = 0;
+
+                        switch (num >> 6)
+                        {
+                            case 0:
+                                strOff = (uint)num & 0xF;
+                                fileStrings.Add(new sceStrings((uint)sfa.PositionStream, offsetStrings)
+                                {
+                                    offset = strOff + offsetStrings,
+                                    typeOffset = sceStrings.OffsetType.ShortOffset
+                                });
+                                break;
+                            case 1:
+                                strOff = (uint)(num & 0xF) << 8 | sfa.ReadByte();
+                                fileStrings.Add(new sceStrings((uint)sfa.PositionStream, offsetStrings)
+                                {
+                                    offset = strOff + offsetStrings,
+                                    typeOffset = sceStrings.OffsetType.MediumOffset
+                                });
+                                break;
+                            case 2:
+                                strOff = (uint)(num & 0xF) << 16 | sfa.ReadUInt16();
+                                fileStrings.Add(new sceStrings((uint)sfa.PositionStream, offsetStrings)
+                                {
+                                    offset = strOff + offsetStrings,
+                                    typeOffset = sceStrings.OffsetType.LargeOffset
+                                });
+                                break;
+                            case 3:
+                                strOff = (uint)(num & 0xF) << 24 | sfa.ReadUInt24();
+                                break;
+                        }
+
+                        if ((num >> 4 & 3) != 1)
+                        {
+                            throw new InvalidOperationException();
+                        }
+
+                        if (sfa.ReadByte() != 0) {
+                            throw new InvalidOperationException();
+                        }
+
+                        fileInstructions[position] = new sceInstruction
+                        {
+                            opcode = sceInstruction.sceOpcode.str,
+                            offset = sfa.GetPosition(),
+                            strTarget = strOff,
+                            strExtra = 0,
+                            size = 3 + (num >> 6)
+
+                        };
+                        fileStrings[fileStrings.Count - 1].instruction = fileInstructions[position];
+                        continue;
+                }
+
+                if (currOpcode > 0x7F)
+                {
+                    sfa.SetPosition(sfa.GetPosition() - 1);
+                    parse0x80(sfa, temp);
+                    fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
+                    continue;
+                }
+                if (currOpcode > 0xF && currOpcode < 0x20)
+                {
+                    temp.Add(currOpcode);
+                    int mask = (currOpcode >> 2) & 3;
+                    if (mask == 1)
+                    {
+                        temp.Add(sfa.ReadByte());
+                    }
+                    if (mask == 2)
+                    {
+                        temp.Add(sfa.ReadByte());
+                        temp.Add(sfa.ReadByte());
+                    }
+                    fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
+                    continue;
+                }
+                if (currOpcode > 0x1F && currOpcode < 0x30)
+                {
+                    sfa.SetPosition(sfa.GetPosition() - 1);
+                    parse0x20(sfa, temp);
+                    fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
+                    continue;
+                }
+                if (currOpcode > 0x2F && currOpcode < 0x40)
+                {
+                    temp.Add(currOpcode);
+                    temp.Add(sfa.ReadByte()); temp.Add(sfa.ReadByte()); temp.Add(sfa.ReadByte()); temp.Add(sfa.ReadByte());
+                    fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
+                    continue;
+                }
+                if (currOpcode > 0x3F && currOpcode < 0x80)
+                {
+                    sfa.SetPosition(sfa.GetPosition() - 1);
+                    parse0x40(sfa, temp);
+                    fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
+                    continue;
+                }
+            }
+            return fileInstructions;
+        }
+
+        private void updateStringRef(sceInstruction inst, uint newTarget)
+        {
+            inst.strTarget = newTarget;
+            if(newTarget <= 0x0F)
+            {
+                inst.size = 3 + 0; 
+            }
+            else if (newTarget <= 0xF_FF)
+            {
+                inst.size = 3 + 1;
+            }
+            else if (newTarget <= 0xF_FF_FF)
+            {
+                inst.size = 3 + 2;
+            }
+            else if (newTarget <= 0xF_FF_FF_FF)
+            {
+                inst.size = 3 + 3;
+            }
+        }
+
         public void WriteStrings(StreamFunctionAdd sfa, bool dedup = false)
         {
             sfa.PositionStream = offsetStrings;
             sfa.LengthStream = offsetStrings;
-            List<int> failedMediumStrings = new List<int>();
-            List<int> failedShortStrings = new List<int>();
-            uint lastShortLength = 0;
-            uint lastMediumLength = 0;
-            long realPos = 0;
             bool matched = false;
+            uint mockStringOffset = 0;
+            uint off;
             for (int index = 0; index < fileStrings.Count; ++index)
             {
                 if (dedup)
@@ -102,111 +368,122 @@ namespace sceWork
                         {
                             if (System.Linq.Enumerable.SequenceEqual(fileStrings[index].data, fileStrings[index1].data))
                             {
-                                realPos = sfa.PositionStream;
                                 fileStrings[index].offset = fileStrings[index1].offset;
+                                updateStringRef(fileStrings[index].instruction, fileStrings[index1].offset);
+                                fileStrings[index].isDeduped = true;
                                 matched = true;
                                 break;
                             }
                         }
                     }
-
-                    if (!matched)
-                        fileStrings[index].WriteData(sfa);
-                }
-                else
-                {
-                    fileStrings[index].WriteData(sfa);
-                }
-
-                if (index > 0)
-                {
-                    uint num1 = fileStrings[index].offset - offsetStrings;
-                    sfa.PositionStream = fileStrings[index].myOffset - 1U;
-                    if (num1 < 0x10 && fileStrings[index].typeOffset == sceStrings.OffsetType.ShortOffset)
-                    {
-                        byte num2 = (byte)(0x10 + num1);
-                        sfa.WriteByte(num2);
-                        sfa.WriteByte(0);
-                    }
-                    else if (num1 < 0x1000 && fileStrings[index].typeOffset == sceStrings.OffsetType.MediumOffset)
-                    {
-                        byte num2 = (byte)(0x50 + (num1 >> 8));
-                        sfa.WriteByte(num2);
-                        byte num3 = (byte)(num1 & byte.MaxValue);
-                        sfa.WriteUInt16(num3);
-                    }
-                    else if (num1 < 0x10000 && fileStrings[index].typeOffset == sceStrings.OffsetType.LargeOffset)
-                    {
-                        sfa.WriteByte(0x90);
-                        sfa.WriteUInt16((ushort)num1);
-                    }
-                    else
-                    {
-                        Console.OutputEncoding = System.Text.Encoding.UTF8;
-                        if (Program.verbose)
-                        {
-                            MiscUtils.Warn("Can't fit desired pointer in the available space...");
-                            MiscUtils.Warn("- Failed at block: " + index + ", around line " + lineNumberList[index]);
-                            MiscUtils.Warn("- String: " + plainStringList[index]);
-                            //MiscUtils.Warn("- Intended offset: " + num1);
-                            MiscUtils.Warn(string.Format("- Position: 0x{0:X6}", fileStrings[index].offset));
-                            MiscUtils.Warn("- Pointer type: " + fileStrings[index].typeOffset);
-                            MiscUtils.Warn("Continuing insertion, but leaving pointer unchanged, expect text errors!");
-                            Console.WriteLine();
-                            //Console.ReadKey();
-                            //throw new InvalidOperationException();
-                        }
-
-                        if (fileStrings[index].typeOffset == sceStrings.OffsetType.MediumOffset)
-                        {
-                            failedMediumStrings.Add(index);
-                            lastMediumLength = num1;
-                        }
-                        else
-                        {
-                            failedShortStrings.Add(index);
-                            lastShortLength = num1;
-                        }
-                    }
-
                     if (matched)
-                    {
-                        sfa.PositionStream = realPos;
-                        matched = false;
                         continue;
-                    }
-                    sfa.PositionStream = sfa.LengthStream;
                 }
+                fileStrings[index].offset = mockStringOffset;
+                updateStringRef(fileStrings[index].instruction, fileStrings[index].offset);
+                mockStringOffset += (uint)fileStrings[index].data.Count;
             }
 
-            if (failedShortStrings.Count != 0 || failedMediumStrings.Count != 0)
+            int sizeStart = instructions[instructionOffsets[0]].size;
+            for (int i = 1; i < instructionOffsets.Count; i++)
             {
-                MiscUtils.Warn("Couldn't insert all lines due to pointer size issues");
-                MiscUtils.Warn("Inserted the other lines, but left the faulty ones untouched, expect text errors!");
-                Console.WriteLine();
-
-                if (failedShortStrings.Count != 0)
-                {
-                    MiscUtils.Info("Found " + failedShortStrings.Count + " strings over the 16 line");
-                    MiscUtils.Info("Remove " + (lastShortLength - 16) + " bytes before line "
-                        + lineNumberList[failedShortStrings[0]] + " to get them back to a valid position");
-                    MiscUtils.Info("Line " + lineNumberList[failedShortStrings[0]] + " for reference:");
-                    MiscUtils.Info("\"" + plainStringList[failedShortStrings[0]] + "\"");
-                    Console.WriteLine();
-                }
-
-                if (failedMediumStrings.Count != 0)
-                {
-                    MiscUtils.Info("Found " + failedMediumStrings.Count + " strings over the 4096 line");
-                    MiscUtils.Info("Remove " + (lastMediumLength - 4096) + " bytes before line "
-                        + lineNumberList[failedMediumStrings[0]] + " to get them back to a valid position");
-                    MiscUtils.Info("Line " + lineNumberList[failedMediumStrings[0]] + " for reference:");
-                    MiscUtils.Info("\"" + plainStringList[failedMediumStrings[0]] + "\"");
-                    Console.WriteLine();
-                }
+                off = (uint)instructionOffsets[i];
+                instructions[off].offset = sizeStart;
+                sizeStart += instructions[off].size;
             }
 
-            sfa.SeekValueWrite(2U);
+            for (int i = 0; i < instructionOffsets.Count; i++)
+            {
+                off = (uint)instructionOffsets[i];
+                if (instructions[off].opcode == sceInstruction.sceOpcode.not_implemented 
+                    || instructions[off].opcode == sceInstruction.sceOpcode.str)
+                {
+                    continue;
+                }
+                uint tgt = instructions[off].branchTarget;
+                instructions[off].branchTarget = (uint)instructions[tgt].offset;
+            }
+
+            sectionOffsets[0] = (uint)instructions[sectionOffsets[0]].offset;
+            sectionOffsets[1] = (uint)instructions[sectionOffsets[1]].offset;
+            for (int i = 2; i < sectionItemCount; i++)
+            {
+                sectionOffsets[i] = (uint)instructions[sectionOffsets[i]].offset;
+            }
+
+            sfa.SetPosition(offsetScript);
+            
+            for (int i = 0; i < instructionOffsets.Count; i++)
+            {
+                off = (uint)instructionOffsets[i];
+                switch (instructions[off].opcode)
+                {
+                    case sceInstruction.sceOpcode.not_implemented:
+                        sfa.WriteBytes(instructions[off].rawBytes);
+                        continue;
+
+                    case sceInstruction.sceOpcode.jmp:
+                    case sceInstruction.sceOpcode.jzs:
+                    case sceInstruction.sceOpcode.jnz:
+                    case sceInstruction.sceOpcode.cll:
+                    case sceInstruction.sceOpcode.jne:
+                    case sceInstruction.sceOpcode.jbt:
+                        sfa.WriteByte((byte)instructions[off].opcode);
+                        sfa.WriteUInt24(instructions[off].branchTarget);
+                        sfa.WriteBytes(instructions[off].operands);
+                        break;
+
+                    case sceInstruction.sceOpcode.str:
+                        sfa.WriteByte((byte)instructions[off].opcode);
+                        byte num = 0x10;
+                        switch (instructions[off].size - 3)
+                        {
+                            case 0:
+                                num |= 0 << 6;
+                                num |= (byte)(instructions[off].strTarget & 0xF);
+                                sfa.WriteByte(num);
+                                break;
+                            case 1:
+                                num |= 1 << 6;
+                                num |= (byte)((instructions[off].strTarget >> 8) & 0xF);
+                                sfa.WriteByte(num);
+                                sfa.WriteByte((byte)instructions[off].strTarget);
+                                break;
+                            case 2:
+                                num |= 2 << 6;
+                                num |= (byte)((instructions[off].strTarget >> 16) & 0xF);
+                                sfa.WriteByte(num);
+                                sfa.WriteUInt16((ushort)instructions[off].strTarget);
+                                break;
+                            case 3:
+                                num |= 3 << 6;
+                                num |= (byte)((instructions[off].strTarget >> 24) & 0xF);
+                                sfa.WriteByte(num);
+                                sfa.WriteUInt24(instructions[off].strTarget & 0xFF_FF_FF);
+                                break;
+                        }
+                        sfa.WriteByte(0);
+                        break;
+                } 
+            }
+            sfa.WriteByte(0);
+            offsetStrings = (uint)sfa.GetPosition();
+            foreach (sceStrings str in fileStrings)
+            {
+                str.WriteData(sfa);
+            }
+            sfa.WriteByte(0);
+
+            sfa.SetPosition(0xC);
+            sfa.WriteUInt32(offsetStrings); sfa.ReadUInt32();
+            sfa.WriteUInt32(sectionOffsets[0]);
+            sfa.WriteUInt32(sectionOffsets[1]);
+            sfa.SetPosition(0x34);
+            for (int i = 2; i < sectionItemCount; i++)
+            {
+                sfa.ReadUInt32();
+                sfa.WriteUInt32(sectionOffsets[i]);
+            }
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 
 namespace StreamFAdd
@@ -101,6 +102,22 @@ namespace StreamFAdd
             return num;
         }
 
+        public uint ReadUInt24(ByteEncoding encoding = ByteEncoding.Selected)
+        {
+            if (encoding == ByteEncoding.Selected)
+                encoding = this.Encoding;
+            uint num = 0;
+            if (encoding != ByteEncoding.Little)
+            {
+                if (encoding == ByteEncoding.Big)
+                    num = (uint)ReadByte() << 16 | (uint)ReadByte() << 8 | (uint)ReadByte();
+            }
+            else
+                num = (uint)ReadByte() | (uint)ReadByte() << 8 | (uint)ReadByte() << 16;
+            return num;
+        }
+
+
         public int ReadInt32(ByteEncoding encoding = ByteEncoding.Selected)
         {
             if (encoding == ByteEncoding.Selected)
@@ -189,6 +206,16 @@ namespace StreamFAdd
 
         public void WriteBytes(byte[] bytes) => this.Source.Write(bytes, 0, bytes.Length);
 
+        public void WriteBytes(List<byte> bytes)
+        {
+            if (bytes == null) return;
+
+            foreach (byte bt in bytes)
+            {
+                Source.WriteByte(bt);
+            }
+        }
+
         public void WriteInt16(short value, ByteEncoding encoding = ByteEncoding.Selected)
         {
             if (encoding == ByteEncoding.Selected)
@@ -222,6 +249,26 @@ namespace StreamFAdd
             {
                 this.WriteByte((byte)((uint)value & (uint)byte.MaxValue));
                 this.WriteByte((byte)((int)value >> 8 & (int)byte.MaxValue));
+            }
+        }
+
+        public void WriteUInt24(uint value, ByteEncoding encoding = ByteEncoding.Selected)
+        {
+            if (encoding == ByteEncoding.Selected)
+                encoding = this.Encoding;
+            if (encoding != ByteEncoding.Little)
+            {
+                if (encoding != ByteEncoding.Big)
+                    return;
+                this.WriteByte((byte)(value >> 16 & (uint)byte.MaxValue));
+                this.WriteByte((byte)(value >> 8 & (uint)byte.MaxValue));
+                this.WriteByte((byte)(value & (uint)byte.MaxValue));
+            }
+            else
+            {
+                this.WriteByte((byte)(value & (uint)byte.MaxValue));
+                this.WriteByte((byte)(value >> 8 & (uint)byte.MaxValue));
+                this.WriteByte((byte)(value >> 16 & (uint)byte.MaxValue));
             }
         }
 

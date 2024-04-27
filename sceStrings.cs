@@ -1,4 +1,5 @@
 ﻿using StreamFAdd;
+using System;
 using System.Collections.Generic;
 
 namespace sceWork
@@ -17,6 +18,8 @@ namespace sceWork
         public uint myOffset;
         public uint offset;
         public List<byte> data;
+        public sceInstruction instruction;
+        public bool isDeduped = false;
 
         public sceStrings(uint off, uint boff)
         {
@@ -37,13 +40,10 @@ namespace sceWork
 
         public void WriteData(StreamFunctionAdd sfa)
         {
-            if (typeOffset == OffsetType.LargeOffset && sfa.PositionStream - baseOffset < 4095L)
+            if (!isDeduped)
             {
-                while (sfa.PositionStream - baseOffset < 4095L)
-                    sfa.WriteByte(0);
+                sfa.WriteBytes(data);
             }
-            offset = (uint)sfa.PositionStream;
-            sfa.WriteBytes(data.ToArray());
         }
     }
 }

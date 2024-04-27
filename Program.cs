@@ -25,7 +25,7 @@ namespace sceWork
 
         private static void Main(string[] args)
         {
-            Console.WriteLine("TOD1RSCE Module v0.9 - Decompiled Clone");
+            Console.WriteLine("TOD1RSCE Module v1.0 - Decompiled Clone (4096 fix)");
             string exeDir = Path.GetDirectoryName(System.Reflection.Assembly.GetExecutingAssembly().GetName().CodeBase);
             exeDir = new Uri(exeDir).LocalPath;
 

@@ -1,3 +1,10 @@
+# About
+The original TOD1RSCE module v0.3 by TTEMMA was generously donated by the Temple of Tales Translations team.
+Please visit http://temple-tales.ru/translations.html for more Tales of translation projects.
+
+The original binaries were decompiled, repackaged and further modified and made to be compatible with .NET 5.0.
+The original project was just a subfolder in the DC repo, so the commit history of this repo is just cherry-picked commits from there, just to have a coherent timeline of the tool's changes, in addition, the original net-framework solution is available in the `legacy` branch.
+
 # Compile Instructions
 1. Open sceWork.sln with Visual Studio Community Edition (2019)
 1. Build the solution (Debug/Release is fine)

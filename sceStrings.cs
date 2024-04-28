@@ -29,11 +29,74 @@ namespace sceWork
             data = new List<byte>();
         }
 
+        public int GetStringLen(StreamFunctionAdd sfa)
+        {
+            int size = 0;
+            byte c;
+
+            sfa.PositionStream = offset;
+            while ((c = sfa.ReadByte()) != 0)
+            {
+                switch (c)
+                {
+                    default:
+                        if (c > 0x7F)
+                        {
+                            sfa.ReadByte();
+                            size += 2;
+                        } else
+                        {
+                            size++;
+                        }
+                        break;
+                    case 4:
+                    case 5:
+                    case 6:
+                    case 7:
+                    case 8:
+                    case 9:
+                    case 0xA:
+                    case 0xB:
+                    case 0xC:
+                    case 0xD:
+                    case 0xE:
+                    case 0xF:
+                        sfa.ReadInt32();
+                        size += 5;
+                        break;
+                    case 0x17:
+                    case 0x18:
+                    case 0x19:
+                    case 0x1A:
+                    case 0x1B:
+                    case 0x1C:
+                    case 0x1D:
+                    case 0x1E:
+                    case 0x1F:
+                        while(sfa.ReadByte() != 0x80)
+                        {
+                            size++;
+                        }
+                        size+=2;
+                        break;
+
+                }
+            }
+            return size+1;
+        }
+
         public void ReadData(StreamFunctionAdd sfa, int size = -1)
         {
-            sfa.PositionStream = offset;
             if (size <= 0)
+            {
+                size = GetStringLen(sfa);
+                sfa.PositionStream = offset;
+                for (int index = 0; index < size; ++index)
+                    data.Add(sfa.ReadByte());
                 return;
+            }
+
+            sfa.PositionStream = offset;
             for (int index = 0; index < size; ++index)
                 data.Add(sfa.ReadByte());
         }

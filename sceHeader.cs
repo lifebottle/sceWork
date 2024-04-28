@@ -59,15 +59,14 @@ namespace sceWork
             fileStrings.Sort((s1, s2) => s1.offset.CompareTo(s2.offset));
 
             //Get sizes
+            //for (int index = 0; index < fileStrings.Count; index++)
+            //{
+            //    sizes.Add((int)fileStrings[index + 1].offset - (int)fileStrings[index].offset);
+            //    else
+            //        sizes.Add((int)(uint)sfa.LengthStream - (int)fileStrings[index].offset);
+            //}
             for (int index = 0; index < fileStrings.Count; ++index)
-            {
-                if (index < fileStrings.Count - 1)
-                    sizes.Add((int)fileStrings[index + 1].offset - (int)fileStrings[index].offset);
-                else
-                    sizes.Add((int)(uint)sfa.LengthStream - (int)fileStrings[index].offset);
-            }
-            for (int index = 0; index < fileStrings.Count; ++index)
-                fileStrings[index].ReadData(sfa, sizes[index]);
+                fileStrings[index].ReadData(sfa);
         }
 
         private void parse0x40(StreamFunctionAdd sfa, List<byte> data)

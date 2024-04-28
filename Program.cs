@@ -47,7 +47,9 @@ namespace sceWork
                 Console.WriteLine("    repack : .exe -r *.tod1rsce4");
                 Console.WriteLine("    repack : .exe -r *.rsce");
                 Console.WriteLine("    repack : .exe -r <dir>");
+                Console.WriteLine("    Sync   : .exe --sync <base> <target>");
                 Console.WriteLine("Add params:");
+                Console.WriteLine("    --sync : Use a file to dump another");
                 Console.WriteLine("    -i : Specify a diferent input file");
                 Console.WriteLine("    -v : Verbose failed string output");
                 Console.WriteLine("    -as <count> : Add <count> bytes to start file");
@@ -104,6 +106,76 @@ namespace sceWork
                         AddBytes(array[index], args);
                     }
                 }
+            }
+
+            // Do sync
+            if (str == "--sync")
+            {
+                string jp_path = args[1];
+                string en_path = args[2];
+
+                string path = !(Path.GetDirectoryName(en_path) != "") ? Environment.CurrentDirectory + "\\" + Path.GetFileNameWithoutExtension(en_path) + ".txt" : Path.GetDirectoryName(en_path) + "\\" + Path.GetFileNameWithoutExtension(en_path) + ".txt";
+
+                sceModule jp_mod = new sceModule(jp_path);
+                sceModule en_mod = new sceModule(en_path, false);
+
+                // Plant jp offsets into english file
+                en_mod.Header.fileStrings = jp_mod.Header.fileStrings;
+
+                // Update offsets
+                foreach (var s in en_mod.Header.fileStrings)
+                {
+                    en_mod.Sfa.PositionStream = s.myOffset + en_mod.Header.offsetScript;
+                    en_mod.Sfa.ReadByte();
+                    byte num = en_mod.Sfa.ReadByte();
+                    uint strOff = 0;
+
+                    s.data.Clear();
+
+                    switch (num >> 6)
+                    {
+                        case 0:
+                            strOff = (uint)num & 0xF;
+                            s.offset = strOff + en_mod.Header.offsetStrings;
+                            break;
+                        case 1:
+                            strOff = (uint)(num & 0xF) << 8 | en_mod.Sfa.ReadByte();
+                            s.offset = strOff + en_mod.Header.offsetStrings;
+                            break;
+                        case 2:
+                            strOff = (uint)(num & 0xF) << 16 | en_mod.Sfa.ReadUInt16();
+                            s.offset = strOff + en_mod.Header.offsetStrings;
+                            break;
+                        case 3:
+                            strOff = (uint)(num & 0xF) << 24 | en_mod.Sfa.ReadUInt24();
+                            s.offset = strOff + en_mod.Header.offsetStrings;
+                            break;
+                    }
+                    s.ReadData(en_mod.Sfa);
+                }
+
+                Console.WriteLine(string.Format("Syncing {0} with {1}...", Path.GetFileName(en_path), Path.GetFileName(jp_path)));
+
+                if (codes == null)
+                    MiscUtils.Warn("No CODES.txt file! Special sequences will be ignored, output can get messy!");
+
+                List<string> stringList = new List<string>();
+                for (int idx = 0; idx < en_mod.Count; ++idx)
+                {
+                    string _str = en_mod.GetStringBlock(idx);
+                    if (codes != null)
+                        _str = codes.ConvertNativeToTags(_str);
+
+                    if (jpcodes != null)
+                        _str = jpcodes.ConvertAtoB(_str);
+                    stringList.Add(HexToAnsi(_str));
+                    stringList.Add("[ENDBLOCK]");
+                }
+
+                if (useSJIS)
+                    File.WriteAllLines(path, stringList.ToArray(), SJIS);
+                else
+                    File.WriteAllLines(path, stringList.ToArray());
             }
             Console.WriteLine("Complete!");
             //Console.ReadKey();

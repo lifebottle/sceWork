@@ -14,11 +14,10 @@ namespace sceWork
         public List<sceStrings> fileStrings;
         public List<int> lineNumberList;
         public List<string> plainStringList;
-        public List<int> sizes;
         public Dictionary<long, sceInstruction> instructions;
         public List<long> instructionOffsets;
 
-        public sceHeader(StreamFunctionAdd sfa)
+        public sceHeader(StreamFunctionAdd sfa, bool parse = true)
         {
             if (sfa.ReadAnsiStringSize(8) != "TOD1RSCE")
             {
@@ -50,23 +49,19 @@ namespace sceWork
                 sectionOffsets[i] = sfa.ReadUInt32();
             }
 
-            fileStrings = new List<sceStrings>();
-            sizes = new List<int>();
             sfa.PositionStream = offsetScript;
+
+            fileStrings = new List<sceStrings>();
             instructions = Parse(sfa, fileStrings);
 
-            //order the offsets by string position
-            fileStrings.Sort((s1, s2) => s1.offset.CompareTo(s2.offset));
+            if (parse)
+            {
+                //order the offsets by string position
+                fileStrings.Sort((s1, s2) => s1.offset.CompareTo(s2.offset));
 
-            //Get sizes
-            //for (int index = 0; index < fileStrings.Count; index++)
-            //{
-            //    sizes.Add((int)fileStrings[index + 1].offset - (int)fileStrings[index].offset);
-            //    else
-            //        sizes.Add((int)(uint)sfa.LengthStream - (int)fileStrings[index].offset);
-            //}
-            for (int index = 0; index < fileStrings.Count; ++index)
-                fileStrings[index].ReadData(sfa);
+                for (int index = 0; index < fileStrings.Count; ++index)
+                    fileStrings[index].ReadData(sfa);
+            }
         }
 
         private void parse0x40(StreamFunctionAdd sfa, List<byte> data)
@@ -216,12 +211,12 @@ namespace sceWork
                     case 9:
                         temp.Add(currOpcode);
                         parse0x40(sfa, temp);
-                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, sfa.GetPosition(), temp);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
                         continue;
                     case 11:
                         temp.Add(currOpcode);
                         parse0x20(sfa, temp);
-                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, sfa.GetPosition(), temp);
+                        fileInstructions[position] = new sceInstruction(sceInstruction.sceOpcode.not_implemented, position, temp);
                         continue;
                     case 0x47:
                         byte num = sfa.ReadByte();
@@ -231,7 +226,7 @@ namespace sceWork
                         {
                             case 0:
                                 strOff = (uint)num & 0xF;
-                                fileStrings.Add(new sceStrings((uint)sfa.PositionStream, offsetStrings)
+                                fileStrings.Add(new sceStrings((uint)position, offsetStrings)
                                 {
                                     offset = strOff + offsetStrings,
                                     typeOffset = sceStrings.OffsetType.ShortOffset
@@ -239,7 +234,7 @@ namespace sceWork
                                 break;
                             case 1:
                                 strOff = (uint)(num & 0xF) << 8 | sfa.ReadByte();
-                                fileStrings.Add(new sceStrings((uint)sfa.PositionStream, offsetStrings)
+                                fileStrings.Add(new sceStrings((uint)position, offsetStrings)
                                 {
                                     offset = strOff + offsetStrings,
                                     typeOffset = sceStrings.OffsetType.MediumOffset
@@ -247,7 +242,7 @@ namespace sceWork
                                 break;
                             case 2:
                                 strOff = (uint)(num & 0xF) << 16 | sfa.ReadUInt16();
-                                fileStrings.Add(new sceStrings((uint)sfa.PositionStream, offsetStrings)
+                                fileStrings.Add(new sceStrings((uint)position, offsetStrings)
                                 {
                                     offset = strOff + offsetStrings,
                                     typeOffset = sceStrings.OffsetType.LargeOffset
@@ -270,7 +265,7 @@ namespace sceWork
                         fileInstructions[position] = new sceInstruction
                         {
                             opcode = sceInstruction.sceOpcode.str,
-                            offset = sfa.GetPosition(),
+                            offset = position,
                             strTarget = strOff,
                             strExtra = 0,
                             size = 3 + (num >> 6)

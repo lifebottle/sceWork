@@ -16,11 +16,12 @@ namespace sceWork
         public int Count => this.header.fileStrings.Count;
 
         internal sceHeader Header { get => header; set => header = value; }
+        internal StreamFunctionAdd Sfa { get => mainSfa; }
 
-        public sceModule(string fileName)
+        public sceModule(string fileName, bool parse = true)
         {
             this.mainSfa = new StreamFunctionAdd(fileName);
-            this.header = new sceHeader(this.mainSfa);
+            this.header = new sceHeader(this.mainSfa, parse);
         }
 
         public byte[] GetBlock(int idx) => this.header.fileStrings[idx].data.ToArray();

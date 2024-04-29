@@ -35,20 +35,20 @@ namespace sceWork
 
         private string FindAtoB(string a)
         {
-            for (int index = 0; index < this.entry.Count; ++index)
+            for (int index = 0; index < entry.Count; index++)
             {
-                if (this.entry[index].A == a)
-                    return this.entry[index].B;
+                if (entry[index].A == a)
+                    return entry[index].B;
             }
             return a;
         }
 
         private string FindBtoA(string b)
         {
-            for (int index = 0; index < this.entry.Count; ++index)
+            for (int index = 0; index < entry.Count; index++)
             {
-                if (this.entry[index].B == b)
-                    return this.entry[index].A;
+                if (entry[index].B == b)
+                    return entry[index].A;
             }
             return b;
         }
@@ -130,17 +130,7 @@ namespace sceWork
                 if ((byteArr[index] >= 0x99 && (byteArr[index] < 0xA0) || byteArr[index] >= 0xE0) && index + 2 <= byteArr.Length)
                 {
                     string str2 = BitConverter.ToString(byteArr, index, 2).Replace("-", string.Empty);
-
-                    int index2 = 0;
-                    while (index2 < entry.Count)
-                    {
-                        if (entry[index2].A.Equals(str2))
-                        {
-                            str1 += entry[index2].B;
-                            break;
-                        }
-                        index2++;
-                    }
+                    str1 += FindAtoB(str2);
 
                     index++;
                     continue;
@@ -181,7 +171,8 @@ namespace sceWork
                 }
                 if (byteArr[index] < 0x7F && byteArr[index] > 0x01)
                 {
-                    str1 += BitConverter.ToString(byteArr, index, 1).Replace("-", string.Empty);
+                    string str2 = BitConverter.ToString(byteArr, index, 1).Replace("-", string.Empty);
+                    str1 += FindBtoA(str2);
                     continue;
                 }
                 if (byteArr[index] == 0x01)
@@ -245,16 +236,7 @@ namespace sceWork
                 if ((byteArr[index] & 0x80) != 0 && index + 2 <= byteArr.Length)
                 {
                     string str2 = BitConverter.ToString(byteArr, index, 2).Replace("-", string.Empty);
-                    int index2 = 0;
-                    while (index2 < entry.Count)
-                    {
-                        if (entry[index2].B.Equals(str2))
-                        {
-                            str1 += entry[index2].A;
-                            break;
-                        }
-                        index2++;
-                    }
+                    str1 += FindBtoA(str2);
 
                     index++;
                 }
@@ -275,7 +257,8 @@ namespace sceWork
                 }
                 else /*if (byteArr[index] < 0x7F) */
                 {
-                    str1 += BitConverter.ToString(byteArr, index, 1).Replace("-", string.Empty);
+                    string str2 = BitConverter.ToString(byteArr, index, 1).Replace("-", string.Empty);
+                    str1 += FindBtoA(str2);
                 }
 
             }

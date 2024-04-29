@@ -9,13 +9,20 @@ namespace sceWork
     public class tableModule
     {
         private List<tableEntry> entry;
+        private List<tableEntry> entryI;
 
         public tableModule(string fileName, bool order = false)
         {
             string[] strArray = File.ReadAllLines(fileName);
             entry = new List<tableEntry>();
+            entryI = new List<tableEntry>();
             for (int index = 0; index < strArray.Length; ++index)
             {
+                if (strArray[index].StartsWith("!"))
+                {
+                    entryI.Add(new tableEntry(strArray[index]));
+                    continue;
+                }
                 if (!strArray[index].StartsWith("//") && !strArray[index].StartsWith("#"))
                 {
                     entry.Add(new tableEntry(strArray[index]));
@@ -45,6 +52,11 @@ namespace sceWork
 
         private string FindBtoA(string b)
         {
+            for (int index = 0; index < entryI.Count; index++)
+            {
+                if (entryI[index].B == b)
+                    return entryI[index].A;
+            }
             for (int index = 0; index < entry.Count; index++)
             {
                 if (entry[index].B == b)

@@ -11,6 +11,7 @@ namespace sceWork
         {
             str = str.Replace(" ", "");
             str = str.Replace("\t", "");
+            str = str.Replace("!", "");
             int startIndex = str.IndexOf('=');
 
             this.A = str.Remove(startIndex);

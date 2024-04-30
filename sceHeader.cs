@@ -52,10 +52,10 @@ namespace sceWork
             sfa.PositionStream = offsetScript;
 
             fileStrings = new List<sceStrings>();
-            instructions = Parse(sfa, fileStrings);
 
             if (parse)
             {
+                instructions = Parse(sfa, fileStrings);
                 //order the offsets by string position
                 fileStrings.Sort((s1, s2) => s1.offset.CompareTo(s2.offset));
 
